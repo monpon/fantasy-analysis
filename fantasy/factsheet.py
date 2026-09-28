@@ -134,6 +134,17 @@ def build_facts(data):
                     lines.append(f"Best bench score: {x['name']} ({x['pos']}) {_f(x['points'])}. "
                                  f"{_f(s['left_on_bench'])} points left on the bench overall.")
                 lines.append(f"Record: {s['record_before_str']} → {s['record_after']}.")
+                d = pdata[p][s["team"]]
+                lines.append("Full starting lineup (actual / projected): " + "; ".join(
+                    f"{x['name']} {x['pos']} {_f(x['points'])}/{_f(x['projection'])}"
+                    for x in sorted((x for x in d["players"] if x["started"]), key=lambda x: -x["points"])) + ".")
+                lines.append("Bench (actual): " + "; ".join(
+                    f"{x['name']} {x['pos']} {_f(x['points'])}"
+                    for x in sorted((x for x in d["players"] if not x["started"]), key=lambda x: -x["points"])) + ".")
+                nxt = next((g for g in data["schedule"] if g["period"] == p + 1 and s["team"] in (g["home"], g["away"])), None)
+                if nxt:
+                    opp = nxt["away"] if nxt["home"] == s["team"] else nxt["home"]
+                    lines.append(f"Next opponent (Week {p + 1}): {teams[opp]['name']}.")
                 s["lines"] = lines
                 s["name"] = t
 

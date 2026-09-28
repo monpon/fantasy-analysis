@@ -325,6 +325,8 @@ def analyze(league, weeks, pro, now=None):
         "standings": standings,
         "results": results,
         "period_data": period_data,
+        "schedule": [{"period": p, "home": m["home"]["teamId"], "away": m["away"]["teamId"]}
+                     for p in sorted(matchups) if regular(p) for m in matchups[p]],
         "live": live,
         "league_ppg": league_ppg,
         "generated": now,

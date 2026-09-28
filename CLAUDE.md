@@ -12,20 +12,31 @@ Static site for ESPN league 148167114, built by `build.py` and deployed to GitHu
 
 ## Recap format
 
-```markdown
-# Week N recaps: optional subtitle
+Each matchup is its own sports-style article: a headline, an italic subheadline, then a lede and story, ending with a **Next up** line.
 
-Short intro about the week as a whole.
+```markdown
+# Week N: page headline for the whole week
+
+Short intro paragraph about the week as a whole.
 
 ## Headline for matchup 1
 
-A paragraph or two. **Bold** and *italic* work, as do - bullet lists and [links](../teams/13.html).
+*One-sentence subheadline.*
+
+@matchup 1 6
+
+Lede paragraph, then the story. **Bold** and *italic* work, as do - bullet lists and [links](../teams/13.html).
+
+**Next up:** Team A face Team B; Team C face Team D.
 
 ## Headline for matchup 2
 ...
 ```
 
-The first `# ` line is the page title. Each `## ` heading is one matchup; those headings also appear on the recaps index page.
+- The first `# ` line is the page title. Each `## ` heading starts one article; its headline is also listed on the recaps index page.
+- `@matchup A B` uses ESPN team ids (1 Fraudulent Failures, 4 GDID, 5 Cleveland Browns, 6 master(rage)baiters, 7 Tennessee Top G's, 8 Barcelona Backshotters, 9 THAT'S MY FAVORITE SAYING, 10 The Washington football team, 11 The Bagel Busters, 13 poverty). It inserts the scoreboard and a starters box score from the data. The build fails if those teams didn't play each other that week.
+- Don't invent quotes, and don't cite NFL facts (touchdowns, yards, injuries, trades) that aren't in the data. Stick to fantasy points, projections, lineup decisions and records.
+- Before publishing, re-check every "most / highest / only / all" claim against all ten teams in the fact sheet.
 
 ## Rules
 

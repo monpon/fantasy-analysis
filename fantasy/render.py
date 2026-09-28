@@ -205,9 +205,18 @@ tr.cut td { border-bottom: 2px solid var(--axis); }
 .game .meta { color: var(--ink-2); font-size: 13px; margin-top: 6px; }
 ul.facts { margin: 6px 0; padding-left: 20px; }
 ul.facts li { margin: 3px 0; }
-.recap h2 { margin-top: 4px; }
-.recap .game { max-width: 420px; margin: 8px 0; }
-.recap .sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 24px; }
+.kicker { text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 20px 0 0; }
+.story { padding: 22px 26px; }
+.story h2 { font-size: 24px; line-height: 1.25; margin: 0 0 6px; }
+.story .dek { font-size: 17px; color: var(--ink-2); margin: 0 0 14px; }
+.story .scoreboard { max-width: 420px; border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid); padding: 6px 0; margin: 0 0 10px; }
+.story-body { font-size: 16px; line-height: 1.65; max-width: 70ch; }
+.story-body p { margin: 0 0 14px; }
+.story-body h3 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-2); margin: 18px 0 6px; }
+details.box { margin: 0 0 14px; font-size: 13px; }
+details.box summary { cursor: pointer; color: var(--ink-2); }
+.box-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 24px; margin-top: 8px; }
+.box-cols td, .box-cols th { padding: 4px 6px; }
 svg.chart { width: 100%; height: auto; display: block; font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; }
 svg .grid { stroke: var(--grid); stroke-width: 1; }
 svg .axis { stroke: var(--axis); stroke-width: 1; }
@@ -568,7 +577,12 @@ def markdown(text):
 
 
 def load_recaps(content_dir):
-    """Hand-written recaps: content/recaps/week-N.md. The first '# ' line is the title."""
+    """Hand-written recaps: content/recaps/week-N.md.
+
+    Format: '# Title', an optional intro, then one '## Headline' section per
+    matchup. Inside a section, an '*italic*' first paragraph is the subheadline
+    and an '@matchup A B' line (ESPN team ids) inserts the scoreboard and box score.
+    """
     import re
     recaps = {}
     folder = os.path.join(content_dir, "recaps")
@@ -579,15 +593,56 @@ def load_recaps(content_dir):
         if not m:
             continue
         with open(os.path.join(folder, fn), encoding="utf-8") as f:
-            text = f.read()
-        lines = text.splitlines()
+            lines = f.read().splitlines()
         title = f"Week {m.group(1)} recaps"
         if lines and lines[0].startswith("# "):
-            title = lines[0][2:].strip()
-            text = "\n".join(lines[1:])
-        headlines = [ln[3:].strip() for ln in text.splitlines() if ln.startswith("## ")]
-        recaps[int(m.group(1))] = {"title": title, "body": markdown(text), "headlines": headlines}
+            title = lines.pop(0)[2:].strip()
+        intro, articles = [], []
+        for ln in lines:
+            if ln.startswith("## "):
+                articles.append({"headline": ln[3:].strip(), "lines": [], "matchup": None})
+            elif articles:
+                mm = re.fullmatch(r"@matchup (\d+) (\d+)", ln.strip())
+                if mm:
+                    articles[-1]["matchup"] = (int(mm.group(1)), int(mm.group(2)))
+                else:
+                    articles[-1]["lines"].append(ln)
+            else:
+                intro.append(ln)
+        for a in articles:
+            body = "\n".join(a["lines"]).strip()
+            first, _, rest = body.partition("\n\n")
+            if first.startswith("*") and first.endswith("*") and not first.startswith("**"):
+                a["dek"] = first.strip("*").strip()
+                body = rest
+            else:
+                a["dek"] = None
+            a["body"] = markdown(body)
+        recaps[int(m.group(1))] = {"title": title, "intro": markdown("\n".join(intro)), "articles": articles}
     return recaps
+
+
+def _box_score(p, matchup, data):
+    teams = data["teams"]
+    result = next((r for r in data["results"] if r["period"] == p and {r["home"], r["away"]} == set(matchup)), None)
+    if result is None:
+        raise ValueError(f"Week {p} recap references teams {matchup}, which did not play each other that week")
+    pd = data["period_data"][p]
+    sides = [(result["home"], result["home_score"]), (result["away"], result["away_score"])]
+    sides.sort(key=lambda s: -s[1])
+    board = "".join(
+        f'<div class="row{" win" if s == max(result["home_score"], result["away_score"]) and result["winner"] != "TIE" else ""}">'
+        f'<span>{team_link(teams[tid], "../")}</span><span class="s">{fmt(s)}</span></div>'
+        for tid, s in sides)
+    cols = []
+    for tid, _ in sides:
+        starters = sorted((x for x in pd[tid]["players"] if x["started"]), key=lambda x: -x["points"])
+        rows = "".join(f"<tr><td>{esc(x['name'])}</td><td>{x['pos']}</td><td class='n'>{fmt(x['points'])}</td>"
+                       f"<td class='n muted'>{fmt(x['projection'])}</td></tr>" for x in starters)
+        cols.append(f"<div><table><thead><tr><th>{esc(teams[tid]['name'])}</th><th>Pos</th><th class='n'>Pts</th>"
+                    f"<th class='n'>Proj</th></tr></thead><tbody>{rows}</tbody></table></div>")
+    return (f'<div class="scoreboard game">{board}</div>'
+            f'<details class="box"><summary>Box score (starters)</summary><div class="box-cols">{"".join(cols)}</div></details>')
 
 
 def recap_week_page(p, recap, recaps, data):
@@ -596,10 +651,16 @@ def recap_week_page(p, recap, recaps, data):
         nav.append(f'<a href="week-{p - 1}.html">← Week {p - 1}</a>')
     if p + 1 in recaps:
         nav.append(f'<a href="week-{p + 1}.html">Week {p + 1} →</a>')
-    body = (f"<h1>{esc(recap['title'])}</h1>"
-            f'<p class="sub">{" · ".join(nav) if nav else "&nbsp;"}</p>'
-            f'<div class="card recap">{recap["body"]}</div>')
-    return page(recap["title"], body, data, prefix="../")
+    parts = [f'<p class="kicker">Week {p} · Matchup recaps</p><h1>{esc(recap["title"])}</h1>',
+             f'<p class="sub">{" · ".join(nav) if nav else "&nbsp;"}</p>']
+    if recap["intro"].strip():
+        parts.append(f'<div class="card recap-intro">{recap["intro"]}</div>')
+    for i, a in enumerate(recap["articles"], 1):
+        dek = f'<p class="dek">{esc(a["dek"])}</p>' if a["dek"] else ""
+        box = _box_score(p, a["matchup"], data) if a["matchup"] else ""
+        parts.append(f'<article class="card story" id="game-{i}"><h2>{esc(a["headline"])}</h2>{dek}{box}'
+                     f'<div class="story-body">{a["body"]}</div></article>')
+    return page(recap["title"], "\n".join(parts), data, prefix="../")
 
 
 def recaps_index_page(recaps, data):
@@ -608,7 +669,8 @@ def recaps_index_page(recaps, data):
         body.append('<div class="card">No recaps yet.</div>')
     for p in sorted(recaps, reverse=True):
         r = recaps[p]
-        items = "".join(f"<li>{esc(h)}</li>" for h in r["headlines"])
+        items = "".join(f'<li><a href="recaps/week-{p}.html#game-{i}">{esc(a["headline"])}</a></li>'
+                        for i, a in enumerate(r["articles"], 1))
         body.append(f'<div class="card"><h2><a href="recaps/week-{p}.html">{esc(r["title"])}</a></h2>'
                     f'<ul class="facts">{items}</ul></div>')
     return page("Recaps", "\n".join(body), data)
