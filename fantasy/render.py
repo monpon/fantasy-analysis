@@ -477,7 +477,7 @@ def team_facts(t, data):
     return facts
 
 
-def team_page(t, data):
+def team_page(t, data, report=None):
     body = [f"<h1>{esc(t['name'])}</h1>",
             f'<p class="sub">{record(t)} · {ordinal(t["standing"])} place · {through_text(data)}</p>']
     body.append('<div class="tiles">'
@@ -497,6 +497,12 @@ def team_page(t, data):
                     body.append(f'<div class="card"><strong>Week {live["period"]} (in progress):</strong> '
                                 f'{fmt(me["score"])} vs {team_link(o, "../")} {fmt(opp["score"])}. '
                                 f'<span class="note">Starters yet to play: {esc(pend)}.</span></div>')
+
+    if report:
+        kicker = f'<p class="kicker" style="margin-top:0">{esc(report["kicker"])} · Team report</p>' if report["kicker"] else ""
+        dek = f'<p class="dek">{esc(report["dek"])}</p>' if report["dek"] else ""
+        body.append(f'<article class="card story">{kicker}<h2>{esc(report["headline"])}</h2>{dek}'
+                    f'<div class="story-body">{report["body"]}</div></article>')
 
     body.append("<h2>Summary</h2><div class='card'><ul class='facts'>"
                 + "".join(f"<li>{f}</li>" for f in team_facts(t, data)) + "</ul></div>")
@@ -622,6 +628,38 @@ def load_recaps(content_dir):
     return recaps
 
 
+def load_team_reports(content_dir):
+    """Hand-written team reports: content/teams/<team id>.md.
+
+    Format: '# Headline', optional '*subheadline*' paragraph, then the article.
+    An optional 'Through Week N' line right after the headline sets the kicker.
+    """
+    import re
+    reports = {}
+    folder = os.path.join(content_dir, "teams")
+    if not os.path.isdir(folder):
+        return reports
+    for fn in os.listdir(folder):
+        m = re.fullmatch(r"(\d+)\.md", fn)
+        if not m:
+            continue
+        with open(os.path.join(folder, fn), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        headline = lines.pop(0)[2:].strip() if lines and lines[0].startswith("# ") else ""
+        kicker = None
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        if lines and re.fullmatch(r"Through Week \d+", lines[0].strip()):
+            kicker = lines.pop(0).strip()
+        body = "\n".join(lines).strip()
+        first, _, rest = body.partition("\n\n")
+        dek = None
+        if first.startswith("*") and first.endswith("*") and not first.startswith("**"):
+            dek, body = first.strip("*").strip(), rest
+        reports[int(m.group(1))] = {"headline": headline, "kicker": kicker, "dek": dek, "body": markdown(body)}
+    return reports
+
+
 def _box_score(p, matchup, data):
     teams = data["teams"]
     result = next((r for r in data["results"] if r["period"] == p and {r["home"], r["away"]} == set(matchup)), None)
@@ -707,6 +745,7 @@ def write_site(data, out_dir, content_dir="content"):
     os.makedirs(os.path.join(out_dir, "teams"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "recaps"), exist_ok=True)
     recaps = load_recaps(content_dir)
+    team_reports = load_team_reports(content_dir)
 
     def write(path, content):
         with open(os.path.join(out_dir, path), "w", encoding="utf-8") as f:
@@ -719,5 +758,5 @@ def write_site(data, out_dir, content_dir="content"):
     for p, recap in recaps.items():
         write(f"recaps/week-{p}.html", recap_week_page(p, recap, recaps, data))
     for t in data["teams"].values():
-        write(f"teams/{t['id']}.html", team_page(t, data))
+        write(f"teams/{t['id']}.html", team_page(t, data, team_reports.get(t["id"])))
     write(".nojekyll", "")

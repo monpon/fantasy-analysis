@@ -38,6 +38,26 @@ Lede paragraph, then the story. **Bold** and *italic* work, as do - bullet lists
 - Don't invent quotes, and don't cite NFL facts (touchdowns, yards, injuries, trades) that aren't in the data. Stick to fantasy points, projections, lineup decisions and records.
 - Before publishing, re-check every "most / highest / only / all" claim against all ten teams in the fact sheet.
 
+## Team reports
+
+Each team has a hand-written report in `content/teams/<team id>.md`, shown at the top of its team page. Update all ten each week along with the recaps. Get the data from `team_facts()` and the players table (starter vs bench splits), and use the same structure for every team:
+
+```markdown
+# Headline
+
+Through Week N
+
+*One-sentence subheadline.*
+
+Opening paragraph: record, PPG rank, all-play rank, how the season has gone.
+
+### What's working
+### What isn't
+### Outlook
+```
+
+"Bench points" means points scored on the bench. "Points left on the bench" means optimal minus actual. Don't mix them up.
+
 ## Rules
 
 - Privacy: use team names only, never owners' real names (ESPN's member data includes them).
