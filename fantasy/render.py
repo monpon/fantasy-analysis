@@ -217,6 +217,9 @@ details.box { margin: 0 0 14px; font-size: 13px; }
 details.box summary { cursor: pointer; color: var(--ink-2); }
 .box-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 24px; margin-top: 8px; }
 .box-cols td, .box-cols th { padding: 4px 6px; }
+table.tape { max-width: 560px; margin: 0 0 12px; }
+table.tape td, table.tape th { padding: 5px 10px; }
+table.tape th:first-child { text-align: right; }
 svg.chart { width: 100%; height: auto; display: block; font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; }
 svg .grid { stroke: var(--grid); stroke-width: 1; }
 svg .axis { stroke: var(--axis); stroke-width: 1; }
@@ -275,7 +278,7 @@ def page(title, body, data, prefix=""):
 <body>
 <header class="site"><div class="wrap">
   <a class="brand" href="{prefix}index.html">{esc(data['league_name'])} {data['season']}</a>
-  <nav><a href="{prefix}index.html">League</a><a href="{prefix}recaps.html">Recaps</a><a href="{prefix}weeks.html">Weekly results</a><a href="{prefix}about.html">How it works</a></nav>
+  <nav><a href="{prefix}index.html">League</a><a href="{prefix}previews.html">Previews</a><a href="{prefix}recaps.html">Recaps</a><a href="{prefix}weeks.html">Weekly results</a><a href="{prefix}about.html">How it works</a></nav>
 </div></header>
 <main class="wrap">
 {body}
@@ -585,7 +588,7 @@ def markdown(text):
     return "\n".join(out)
 
 
-def load_recaps(content_dir):
+def load_recaps(content_dir, folder_name="recaps"):
     """Hand-written recaps: content/recaps/week-N.md.
 
     Format: '# Title', an optional intro, then one '## Headline' section per
@@ -594,7 +597,7 @@ def load_recaps(content_dir):
     """
     import re
     recaps = {}
-    folder = os.path.join(content_dir, "recaps")
+    folder = os.path.join(content_dir, folder_name)
     if not os.path.isdir(folder):
         return recaps
     for fn in os.listdir(folder):
@@ -686,35 +689,84 @@ def _box_score(p, matchup, data):
             f'<details class="box"><summary>Box score (starters)</summary><div class="box-cols">{"".join(cols)}</div></details>')
 
 
-def recap_week_page(p, recap, recaps, data):
+def _preview_box(p, matchup, data):
+    teams = data["teams"]
+    if p in data["completed"]:
+        # The week has been played: show how it actually went.
+        return (_box_score(p, matchup, data).split("<details")[0]
+                + '<p class="note">Final result. This preview was written before the games.</p>')
+    up = data.get("upcoming")
+    if not up or up["period"] != p:
+        return ""
+    game = next((g for g in up["games"] if set(g) == set(matchup)), None)
+    if game is None:
+        raise ValueError(f"Week {p} preview references teams {matchup}, which don't play each other that week")
+    a, b = (teams[x] for x in game)
+    pa, pb = (up["teams"][x] for x in game)
+
+    def last(t):
+        return fmt(t["weekly"][-1]["points"]) if t["weekly"] else "—"
+
+    rows = [
+        ("Record", record(a), record(b)),
+        ("Standing", ordinal(a["standing"]), ordinal(b["standing"])),
+        ("Points per game", f"{fmt(a['ppg'])} ({rank_str(a['ranks']['ppg'])})", f"{fmt(b['ppg'])} ({rank_str(b['ranks']['ppg'])})"),
+        ("All-play", f"{allplay(a)} ({rank_str(a['ranks']['allplay'])})", f"{allplay(b)} ({rank_str(b['ranks']['allplay'])})"),
+        ("Last week", last(a), last(b)),
+        ("ESPN projection", fmt(pa["projected"]), fmt(pb["projected"])),
+    ] + [(f"{pos} rank", rank_str(a["pos_ranks"][pos]), rank_str(b["pos_ranks"][pos])) for pos in POSITION_ORDER]
+    tape = "".join(f"<tr><td class='n'>{x}</td><td class='muted' style='text-align:center'>{k}</td><td>{y}</td></tr>"
+                   for k, x, y in rows)
+    cols = []
+    for t, pt in ((a, pa), (b, pb)):
+        body = "".join(
+            f"<tr><td>{esc(r['name'])}"
+            + (f" <span class='badge'>{esc(r['injury'].replace('_', ' ').title())}</span>" if r["injury"] not in ("", "ACTIVE") else "")
+            + f"</td><td>{r['pos']}</td><td class='n'>{fmt(r['projection'])}</td></tr>" for r in pt["starters"])
+        cols.append(f"<div><table><thead><tr><th>{esc(t['name'])}</th><th>Pos</th><th class='n'>Proj</th></tr></thead>"
+                    f"<tbody>{body}</tbody></table></div>")
+    gen = datetime.datetime.fromtimestamp(up["fetched"], datetime.timezone.utc)
+    return (f'<div class="table-wrap"><table class="tape"><thead><tr><th class="n">{team_link(a, "../")}</th><th></th>'
+            f'<th>{team_link(b, "../")}</th></tr></thead><tbody>{tape}</tbody></table></div>'
+            f'<details class="box"><summary>Projected starting lineups (as of {gen:%b %d})</summary>'
+            f'<div class="box-cols">{"".join(cols)}</div></details>')
+
+
+def recap_week_page(p, recap, recaps, data, kind="recaps"):
     nav = []
     if p - 1 in recaps:
         nav.append(f'<a href="week-{p - 1}.html">← Week {p - 1}</a>')
     if p + 1 in recaps:
         nav.append(f'<a href="week-{p + 1}.html">Week {p + 1} →</a>')
-    parts = [f'<p class="kicker">Week {p} · Matchup recaps</p><h1>{esc(recap["title"])}</h1>',
+    label = "Matchup previews" if kind == "previews" else "Matchup recaps"
+    parts = [f'<p class="kicker">Week {p} · {label}</p><h1>{esc(recap["title"])}</h1>',
              f'<p class="sub">{" · ".join(nav) if nav else "&nbsp;"}</p>']
     if recap["intro"].strip():
         parts.append(f'<div class="card recap-intro">{recap["intro"]}</div>')
+    boxer = _preview_box if kind == "previews" else _box_score
     for i, a in enumerate(recap["articles"], 1):
         dek = f'<p class="dek">{esc(a["dek"])}</p>' if a["dek"] else ""
-        box = _box_score(p, a["matchup"], data) if a["matchup"] else ""
+        box = boxer(p, a["matchup"], data) if a["matchup"] else ""
         parts.append(f'<article class="card story" id="game-{i}"><h2>{esc(a["headline"])}</h2>{dek}{box}'
                      f'<div class="story-body">{a["body"]}</div></article>')
     return page(recap["title"], "\n".join(parts), data, prefix="../")
 
 
-def recaps_index_page(recaps, data):
-    body = ["<h1>Matchup recaps</h1>", '<p class="sub">Weekly write-ups of every matchup.</p>']
+def recaps_index_page(recaps, data, kind="recaps"):
+    if kind == "previews":
+        title, sub, empty = "Matchup previews", "A look ahead at each week's matchups.", "No previews yet."
+    else:
+        title, sub, empty = "Matchup recaps", "Weekly write-ups of every matchup.", "No recaps yet."
+    body = [f"<h1>{title}</h1>", f'<p class="sub">{sub}</p>']
     if not recaps:
-        body.append('<div class="card">No recaps yet.</div>')
+        body.append(f'<div class="card">{empty}</div>')
     for p in sorted(recaps, reverse=True):
         r = recaps[p]
-        items = "".join(f'<li><a href="recaps/week-{p}.html#game-{i}">{esc(a["headline"])}</a></li>'
+        items = "".join(f'<li><a href="{kind}/week-{p}.html#game-{i}">{esc(a["headline"])}</a></li>'
                         for i, a in enumerate(r["articles"], 1))
-        body.append(f'<div class="card"><h2><a href="recaps/week-{p}.html">{esc(r["title"])}</a></h2>'
+        body.append(f'<div class="card"><h2><a href="{kind}/week-{p}.html">{esc(r["title"])}</a></h2>'
                     f'<ul class="facts">{items}</ul></div>')
-    return page("Recaps", "\n".join(body), data)
+    return page(title.split()[-1].title(), "\n".join(body), data)
 
 
 def about_page(data):
@@ -722,9 +774,10 @@ def about_page(data):
 <h1>How it works</h1>
 <div class="card">
 <h3>Data</h3>
-<p>Everything comes from ESPN's public fantasy API. The site rebuilds automatically on a schedule. Only team names are shown.</p>
+<p>Everything comes from ESPN's public fantasy API. The site is rebuilt each week, when the recaps, team reports and previews are published. Only team names are shown.</p>
 <h3>Completed weeks only</h3>
-<p>Season stats (records, points, all-play, efficiency, player splits) only include weeks where ESPN has declared a winner in every matchup.
+<p>Season stats (records, points, all-play, efficiency, player splits) only include finished weeks: ones ESPN has finalized, or ones where every game is over and ESPN projects no remaining points.
+The second kind is marked "unofficial" until ESPN finalizes it.
 The in-progress week appears in the live section and doesn't affect any season number. As a check, every build recomputes each team's score from its starting lineup
 and stops if it doesn't match ESPN's official total.</p>
 <h3>All-play record</h3>
@@ -758,6 +811,11 @@ def write_site(data, out_dir, content_dir="content"):
     write("weeks.html", weeks_page(data, recaps))
     write("about.html", about_page(data))
     write("recaps.html", recaps_index_page(recaps, data))
+    os.makedirs(os.path.join(out_dir, "previews"), exist_ok=True)
+    previews = load_recaps(content_dir, "previews")
+    write("previews.html", recaps_index_page(previews, data, kind="previews"))
+    for p, prev in previews.items():
+        write(f"previews/week-{p}.html", recap_week_page(p, prev, previews, data, kind="previews"))
     for p, recap in recaps.items():
         write(f"recaps/week-{p}.html", recap_week_page(p, recap, recaps, data))
     for t in data["teams"].values():

@@ -13,7 +13,7 @@ import sys
 
 from fantasy.analysis import DataMismatch, analyze
 from fantasy.espn import ESPN
-from fantasy.factsheet import format_fact_sheet
+from fantasy.factsheet import format_fact_sheet, format_preview_sheet
 from fantasy.render import write_site
 
 DEFAULT_LEAGUE_ID = "148167114"
@@ -28,13 +28,16 @@ def main():
     parser.add_argument("--cache", default=None, help="directory for cached API responses")
     parser.add_argument("--facts", type=int, metavar="WEEK",
                         help="print the verified fact sheet for a completed week instead of building")
+    parser.add_argument("--preview", type=int, metavar="WEEK",
+                        help="print the projections fact sheet for next week's matchups instead of building")
     args = parser.parse_args()
 
     api = ESPN(args.league, args.season, cache_dir=args.cache)
     league = api.league()
     current = league["status"]["currentMatchupPeriod"]
     period_map = {int(k): v for k, v in league["settings"]["scheduleSettings"]["matchupPeriods"].items()}
-    scoring_periods = sorted({sp for p in range(1, current + 1) for sp in period_map.get(p, [])})
+    # Through the current week, plus next week for previews (projections).
+    scoring_periods = sorted({sp for p in range(1, current + 2) for sp in period_map.get(p, [])})
     weeks = {sp: api.week(sp) for sp in scoring_periods}
     pro = api.pro_schedule()
 
@@ -43,9 +46,10 @@ def main():
     except DataMismatch as e:
         sys.exit(f"Build stopped: {e}")
 
-    if args.facts is not None:
+    if args.facts is not None or args.preview is not None:
         sys.stdout.reconfigure(encoding="utf-8")
-        print(format_fact_sheet(data, args.facts))
+        print(format_fact_sheet(data, args.facts) if args.facts is not None
+              else format_preview_sheet(data, args.preview))
         return
 
     write_site(data, args.out)

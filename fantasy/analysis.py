@@ -310,6 +310,36 @@ def analyze(league, weeks, pro, now=None):
             games_live.append(side)
         live = {"period": live_period, "games": games_live}
 
+    # ---- next week's matchups (previews) ----
+    upcoming = None
+    future_periods = [p for p in sorted(matchups) if regular(p) and p not in completed and p != live_period]
+    if future_periods and period_map.get(future_periods[0], [None])[0] in weeks:
+        np_ = future_periods[0]
+        sp = period_map[np_][0]
+        proj_teams = {}
+        for t in weeks[sp]["teams"]:
+            starters, bench, entries = [], [], []
+            for e in t["roster"]["entries"]:
+                p = e["playerPoolEntry"]["player"]
+                row = {"name": p["fullName"], "pos": POSITIONS.get(p["defaultPositionId"], "?"),
+                       "pro": pro_abbrev.get(p.get("proTeamId"), "FA"),
+                       "projection": player_points(p, sp, source=1), "injury": p.get("injuryStatus") or "",
+                       "ir": e["lineupSlotId"] == 21}
+                # Players listed out can't help, even if ESPN still shows a projection.
+                usable = 0.0 if row["injury"] in INACTIVE_STATUSES else row["projection"]
+                entries.append({"points": usable, "eligible": p.get("eligibleSlots", [])})
+                (bench if e["lineupSlotId"] in BENCH_SLOTS else starters).append(row)
+            starters.sort(key=lambda r: -r["projection"])
+            bench.sort(key=lambda r: -r["projection"])
+            proj_teams[t["id"]] = {
+                "starters": starters, "bench": bench,
+                "projected": sum(r["projection"] for r in starters),
+                "best_projected": optimal_points(entries, lineup_counts),
+                "flagged": [r for r in starters if r["injury"] in INACTIVE_STATUSES or r["projection"] <= 0],
+            }
+        upcoming = {"period": np_, "games": [(m["home"]["teamId"], m["away"]["teamId"]) for m in matchups[np_]],
+                    "teams": proj_teams, "fetched": now}
+
     # ---- playoff odds ----
     league_ppg = statistics.mean(t["ppg"] for t in teams.values()) if games else 0.0
     est = {tid: 0.5 * t["ppg"] + 0.5 * league_ppg for tid, t in teams.items()}
@@ -356,6 +386,7 @@ def analyze(league, weeks, pro, now=None):
         "playoff_teams": playoff_teams,
         "completed": completed,
         "unofficial": unofficial,
+        "upcoming": upcoming,
         "teams": teams,
         "standings": standings,
         "results": results,

@@ -38,6 +38,14 @@ Lede paragraph, then the story. **Bold** and *italic* work, as do - bullet lists
 - Don't invent quotes, and don't cite NFL facts (touchdowns, yards, injuries, trades) that aren't in the data. Stick to fantasy points, projections, lineup decisions and records.
 - Before publishing, re-check every "most / highest / only / all" claim against all ten teams in the fact sheet.
 
+## Previews
+
+Each week also gets `content/previews/week-N.md` for the *next* week's matchups, in the same article format as recaps (`@matchup A B` inserts a tale-of-the-tape box: records, PPG, all-play, ESPN projection, position ranks and projected lineups). Get the numbers from `python build.py --cache .cache --preview N`.
+
+- Projections come from lineups as currently set. Always say "as of" the date, and call out starters listed OUT or projected 0 (the sheet flags them). Also compare with the "best possible projected lineup", which excludes OUT/IR players.
+- Don't predict winners beyond what ESPN's projection says. Frame it as what to watch.
+- Once the week is played, the preview page automatically shows the final score instead of projections.
+
 ## Team reports
 
 Each team has a hand-written report in `content/teams/<team id>.md`, shown at the top of its team page. Update all ten each week along with the recaps. Get the data from `team_facts()` and the players table (starter vs bench splits), and use the same structure for every team:

@@ -181,6 +181,44 @@ def build_facts(data):
     return recaps
 
 
+def format_preview_sheet(data, period):
+    up = data.get("upcoming")
+    if not up or up["period"] != period:
+        have = up["period"] if up else "none"
+        return f"No preview data for Week {period}. Next week with projections: {have}."
+    teams = data["teams"]
+    last = data["completed"][-1] if data["completed"] else None
+    out = [f"WEEK {period} PREVIEW FACT SHEET (ESPN projections as currently set; lineups may change)", "=" * 60]
+    for h, a in up["games"]:
+        out += ["", "-" * 60, f"{teams[h]['name']} vs {teams[a]['name']}"]
+        for tid in (h, a):
+            t, pt = teams[tid], up["teams"][tid]
+            recent = [w["points"] for w in t["weekly"]]
+            streak_res = [r for r in data["results"] if tid in (r["home"], r["away"])]
+            res = "".join("W" if (r["winner"] == "HOME") == (r["home"] == tid) else "L" for r in streak_res)
+            out.append(f"  {t['name']}: {t['wins']}-{t['losses']} ({_ordinal(t['standing'])} place), "
+                       f"PPG {_f(t['ppg'])} ({_ordinal(t['ranks']['ppg'][0])}), all-play "
+                       f"{t['allplay_w']}-{t['allplay_l']} ({_ordinal(t['ranks']['allplay'][0])}), results {res}, "
+                       f"weekly {', '.join(_f(x) for x in recent)}"
+                       + (f", last week {_f(recent[-1])}" if last else ""))
+            out.append(f"    Projected (current lineup): {_f(pt['projected'])} | best possible projected lineup: "
+                       f"{_f(pt['best_projected'])}")
+            out.append("    Position ranks: " + ", ".join(f"{p} {_ordinal(t['pos_ranks'][p][0])}" for p in t["pos_ranks"]))
+            out.append("    Projected starters: " + "; ".join(
+                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "")
+                for r in pt["starters"]))
+            out.append("    Bench: " + "; ".join(
+                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "")
+                for r in pt["bench"]))
+            if pt["flagged"]:
+                out.append("    FLAG, starter listed out or projected 0: " + ", ".join(
+                    f"{r['name']} ({r['injury'] or 'proj 0'})" for r in pt["flagged"]))
+        diff = up["teams"][h]["projected"] - up["teams"][a]["projected"]
+        fav = teams[h]["name"] if diff > 0 else teams[a]["name"]
+        out.append(f"  ESPN projection favors {fav} by {_f(abs(diff))}.")
+    return "\n".join(out)
+
+
 def format_fact_sheet(data, period):
     facts = build_facts(data)
     if period not in facts:
