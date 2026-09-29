@@ -98,9 +98,35 @@ def analyze(league, weeks, pro, now=None):
     def regular(p):
         return p <= regular_periods
 
+    def official(p):
+        return all(m.get("winner") not in (None, "UNDECIDED") for m in matchups[p])
+
+    def all_games_over(p):
+        """Every NFL game in the period kicked off more than GAME_WINDOW ago."""
+        times = [ts for (_, sp), ts in kickoff.items() if sp in period_map.get(p, [])]
+        return bool(times) and max(times) + GAME_WINDOW < now
+
+    # A week ESPN hasn't finalized yet counts as complete (unofficially) once
+    # all its games are over. Winners come from the live totals.
+    unofficial = []
+    for p in sorted(matchups):
+        if regular(p) and p <= current_period and not official(p) and all_games_over(p):
+            live_week = weeks.get(period_map[p][-1], {})
+            live = {m["id"]: m for m in live_week.get("schedule", []) if m.get("matchupPeriodId") == p}
+            final = []
+            for m in matchups[p]:
+                lm = live.get(m["id"], m)
+                m = {**m, "home": dict(m["home"]), "away": dict(m["away"])}
+                for side in ("home", "away"):
+                    m[side]["totalPoints"] = lm[side].get("totalPointsLive", lm[side].get("totalPoints", 0.0))
+                hs, as_ = m["home"]["totalPoints"], m["away"]["totalPoints"]
+                m["winner"] = "HOME" if hs > as_ else "AWAY" if as_ > hs else "TIE"
+                final.append(m)
+            matchups[p] = final
+            unofficial.append(p)
+
     completed = [p for p in sorted(matchups)
-                 if regular(p) and p <= current_period
-                 and all(m.get("winner") not in (None, "UNDECIDED") for m in matchups[p])]
+                 if regular(p) and p <= current_period and (official(p) or p in unofficial)]
     live_period = current_period if current_period not in completed and regular(current_period) else None
 
     # ---- per-team, per-period lineup data ----
@@ -321,6 +347,7 @@ def analyze(league, weeks, pro, now=None):
         "regular_periods": regular_periods,
         "playoff_teams": playoff_teams,
         "completed": completed,
+        "unofficial": unofficial,
         "teams": teams,
         "standings": standings,
         "results": results,

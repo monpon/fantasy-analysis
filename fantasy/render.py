@@ -292,7 +292,10 @@ def through_text(data):
     c = data["completed"]
     if not c:
         return "No completed weeks yet."
-    return f"Through Week {c[-1]}" + (f" · Week {data['live']['period']} in progress" if data["live"] else "")
+    unofficial = (f" (Week {', '.join(map(str, data['unofficial']))} scores unofficial until ESPN finalizes)"
+                  if data.get("unofficial") else "")
+    return (f"Through Week {c[-1]}{unofficial}"
+            + (f" · Week {data['live']['period']} in progress" if data["live"] else ""))
 
 
 def live_section(data, prefix=""):
