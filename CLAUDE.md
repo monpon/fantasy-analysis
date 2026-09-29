@@ -4,7 +4,7 @@ Static site for ESPN league 148167114, built by `build.py` and deployed to GitHu
 
 ## Weekly update (the user asks on Tuesdays)
 
-1. Fetch fresh data: `rm -rf .cache && python build.py --cache .cache`. Check the output says the week is in `completed weeks`. A week counts once ESPN finalizes it, or unofficially once every NFL game in it ended more than 4 hours ago; the site then labels it "unofficial" until ESPN catches up. The user chose this over waiting for ESPN, since ESPN can take until Tuesday morning. If the week still isn't counted, games are still going, so stop and tell the user.
+1. Fetch fresh data: `rm -rf .cache && python build.py --cache .cache`. Check the output says the week is in `completed weeks`. A week counts once ESPN finalizes it, or unofficially once every NFL game in it has kicked off and ESPN projects no remaining points for any team; the site then labels it "unofficial" until ESPN catches up. The user chose this over waiting for ESPN, since ESPN can take until Tuesday morning. If the week still isn't counted, games are still going, so stop and tell the user.
 2. Get the verified numbers: `python build.py --cache .cache --facts N`.
 3. Write the recaps by hand in `content/recaps/week-N.md` (format below). Every number and claim must come from the fact sheet or from the built pages. Don't use memory or assumptions about players' teams, byes or injuries. The "Suggested angle" lines are only prompts and can be ignored.
 4. Rebuild (`python build.py --cache .cache`), preview (`python -m http.server -d site 8000`), and screenshot or read the recap page to check it renders.

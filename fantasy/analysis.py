@@ -102,9 +102,17 @@ def analyze(league, weeks, pro, now=None):
         return all(m.get("winner") not in (None, "UNDECIDED") for m in matchups[p])
 
     def all_games_over(p):
-        """Every NFL game in the period kicked off more than GAME_WINDOW ago."""
+        """Every NFL game in the period has kicked off and ESPN projects no
+        remaining points for any team (projected live total == live total)."""
         times = [ts for (_, sp), ts in kickoff.items() if sp in period_map.get(p, [])]
-        return bool(times) and max(times) + GAME_WINDOW < now
+        if not times or max(times) > now:
+            return False
+        sides = [m[s] for m in weeks.get(period_map[p][-1], {}).get("schedule", [])
+                 if m.get("matchupPeriodId") == p and "away" in m for s in ("home", "away")]
+        return bool(sides) and all(
+            s.get("totalProjectedPointsLive") is not None
+            and abs(s["totalProjectedPointsLive"] - s.get("totalPointsLive", 0.0)) < 0.01
+            for s in sides)
 
     # A week ESPN hasn't finalized yet counts as complete (unofficially) once
     # all its games are over. Winners come from the live totals.
