@@ -2,7 +2,7 @@
 
 Week 3 ended with five teams at 2-1 and five at 1-2. The league average was 135.1. The Washington football team had the high score (166.2) and The Bagel Busters the low (102.2). Jahmyr Gibbs's 41.4 was the best individual score of the week. The closest game was decided on Monday night.
 
-*Scores are as of the end of Monday Night Football. ESPN hadn't made them official when this was written.*
+*Written right after Monday Night Football; ESPN later made these scores official with no changes.*
 
 ## Burden's Monday night gives master(rage)baiters their first win
 
