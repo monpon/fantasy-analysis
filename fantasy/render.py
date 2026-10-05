@@ -695,6 +695,17 @@ def _preview_box(p, matchup, data):
         # The week has been played: show how it actually went.
         return (_box_score(p, matchup, data).split("<details")[0]
                 + '<p class="note">Final result. This preview was written before the games.</p>')
+    live = data.get("live")
+    if live and live["period"] == p:
+        g = next((g for g in live["games"] if {g["home"]["team"], g["away"]["team"]} == set(matchup)), None)
+        if g:
+            rows = "".join(f'<div class="row"><span>{team_link(teams[s["team"]], "../")}</span>'
+                           f'<span class="s">{fmt(s["score"])}</span></div>' for s in (g["home"], g["away"]))
+            left = [f'{esc(teams[s["team"]]["name"])}: {esc(", ".join(p_["name"] for p_ in s["pending"] + s["in_game"]))}'
+                    for s in (g["home"], g["away"]) if s["pending"] or s["in_game"]]
+            note = ("Still to play or in progress, " + "; ".join(left)) if left else "All starters have played"
+            return (f'<div class="scoreboard game"><span class="badge">Live</span>{rows}</div>'
+                    f'<p class="note">{note}. This preview was written before the games.</p>')
     up = data.get("upcoming")
     if not up or up["period"] != p:
         return ""
