@@ -310,21 +310,19 @@ def analyze(league, weeks, pro, now=None):
             games_live.append(side)
         live = {"period": live_period, "games": games_live}
 
-    # ---- next week's matchups (previews) ----
-    upcoming = None
-    future_periods = [p for p in sorted(matchups) if regular(p) and p not in completed and p != live_period]
-    if future_periods and period_map.get(future_periods[0], [None])[0] in weeks:
-        np_ = future_periods[0]
+    # ---- projections for previews: next week, plus the live week ----
+    def projections_for(np_):
         sp = period_map[np_][0]
         proj_teams = {}
         for t in weeks[sp]["teams"]:
             starters, bench, entries = [], [], []
             for e in t["roster"]["entries"]:
                 p = e["playerPoolEntry"]["player"]
+                ko = kickoff.get((p.get("proTeamId"), sp))
                 row = {"name": p["fullName"], "pos": POSITIONS.get(p["defaultPositionId"], "?"),
                        "pro": pro_abbrev.get(p.get("proTeamId"), "FA"),
                        "projection": player_points(p, sp, source=1), "injury": p.get("injuryStatus") or "",
-                       "ir": e["lineupSlotId"] == 21}
+                       "ir": e["lineupSlotId"] == 21, "kicked_off": ko is not None and ko <= now}
                 # Players listed out can't help, even if ESPN still shows a projection.
                 usable = 0.0 if row["injury"] in INACTIVE_STATUSES else row["projection"]
                 entries.append({"points": usable, "eligible": p.get("eligibleSlots", [])})
@@ -337,8 +335,14 @@ def analyze(league, weeks, pro, now=None):
                 "best_projected": optimal_points(entries, lineup_counts),
                 "flagged": [r for r in starters if r["injury"] in INACTIVE_STATUSES or r["projection"] <= 0],
             }
-        upcoming = {"period": np_, "games": [(m["home"]["teamId"], m["away"]["teamId"]) for m in matchups[np_]],
-                    "teams": proj_teams, "fetched": now}
+        return {"period": np_, "games": [(m["home"]["teamId"], m["away"]["teamId"]) for m in matchups[np_]],
+                "teams": proj_teams, "fetched": now}
+
+    upcoming = None
+    future_periods = [p for p in sorted(matchups) if regular(p) and p not in completed and p != live_period]
+    if future_periods and period_map.get(future_periods[0], [None])[0] in weeks:
+        upcoming = projections_for(future_periods[0])
+    live_projections = projections_for(live_period) if live_period else None
 
     # ---- playoff odds ----
     league_ppg = statistics.mean(t["ppg"] for t in teams.values()) if games else 0.0
@@ -387,6 +391,7 @@ def analyze(league, weeks, pro, now=None):
         "completed": completed,
         "unofficial": unofficial,
         "upcoming": upcoming,
+        "live_projections": live_projections,
         "teams": teams,
         "standings": standings,
         "results": results,

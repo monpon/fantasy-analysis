@@ -182,13 +182,17 @@ def build_facts(data):
 
 
 def format_preview_sheet(data, period):
-    up = data.get("upcoming")
-    if not up or up["period"] != period:
-        have = up["period"] if up else "none"
-        return f"No preview data for Week {period}. Next week with projections: {have}."
+    up = next((x for x in (data.get("upcoming"), data.get("live_projections")) if x and x["period"] == period), None)
+    if not up:
+        have = [x["period"] for x in (data.get("upcoming"), data.get("live_projections")) if x]
+        return f"No preview data for Week {period}. Weeks with projections: {have or 'none'}."
     teams = data["teams"]
     last = data["completed"][-1] if data["completed"] else None
     out = [f"WEEK {period} PREVIEW FACT SHEET (ESPN projections as currently set; lineups may change)", "=" * 60]
+    started = sorted({r["pro"] for t in up["teams"].values() for r in t["starters"] + t["bench"] if r["kicked_off"]})
+    if started:
+        out.append(f"NOTE: this week has already started. NFL teams that have kicked off: {', '.join(started)}. "
+                   "Their players are marked [PLAYED]; projections shown are ESPN's pre-game numbers.")
     for h, a in up["games"]:
         out += ["", "-" * 60, f"{teams[h]['name']} vs {teams[a]['name']}"]
         for tid in (h, a):
@@ -205,10 +209,10 @@ def format_preview_sheet(data, period):
                        f"{_f(pt['best_projected'])}")
             out.append("    Position ranks: " + ", ".join(f"{p} {_ordinal(t['pos_ranks'][p][0])}" for p in t["pos_ranks"]))
             out.append("    Projected starters: " + "; ".join(
-                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "")
+                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "") + (" [PLAYED]" if r["kicked_off"] else "")
                 for r in pt["starters"]))
             out.append("    Bench: " + "; ".join(
-                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "")
+                f"{r['name']} {r['pos']} {_f(r['projection'])}" + (f" [{r['injury']}]" if r["injury"] not in ("", "ACTIVE") else "") + (" [PLAYED]" if r["kicked_off"] else "")
                 for r in pt["bench"]))
             if pt["flagged"]:
                 out.append("    FLAG, starter listed out or projected 0: " + ", ".join(

@@ -44,7 +44,10 @@ Each week also gets `content/previews/week-N.md` for the *next* week's matchups,
 
 - Projections come from lineups as currently set. Always say "as of" the date, and call out starters listed OUT or projected 0 (the sheet flags them). Also compare with the "best possible projected lineup", which excludes OUT/IR players.
 - Don't predict winners beyond what ESPN's projection says. Frame it as what to watch.
-- Once the week is played, the preview page automatically shows the final score instead of projections.
+- Once the week is played, the preview page automatically shows the final score instead of projections. While it's being played, it shows the live score.
+- If the week has already started when writing (e.g. Thursday night), `--preview N` still works for the live week. It marks players who already played [PLAYED] and keeps ESPN's pre-game projections. Say so in the intro, and don't report those players' results in a preview.
+- Check the NFL bye list for the week (`proGamesByScoringPeriod` has no entry for that team). Projections of 0.0 for healthy players usually mean a bye.
+- Team names can change (e.g. THAT'S MY FAVORITE SAYING became Net Worth: 1.4b in Week 4). Generated boxes always use the current name; hand-written text from earlier weeks keeps the old one.
 
 ## Team reports
 
