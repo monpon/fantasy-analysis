@@ -696,7 +696,10 @@ def _preview_box(p, matchup, data):
         return (_box_score(p, matchup, data).split("<details")[0]
                 + '<p class="note">Final result. This preview was written before the games.</p>')
     live = data.get("live")
-    if live and live["period"] == p:
+    lp = data.get("live_projections")
+    week_started = bool(lp and lp["period"] == p and any(
+        r["kicked_off"] for t in lp["teams"].values() for r in t["starters"] + t["bench"]))
+    if live and live["period"] == p and week_started:
         g = next((g for g in live["games"] if {g["home"]["team"], g["away"]["team"]} == set(matchup)), None)
         if g:
             rows = "".join(f'<div class="row"><span>{team_link(teams[s["team"]], "../")}</span>'
@@ -706,8 +709,8 @@ def _preview_box(p, matchup, data):
             note = ("Still to play or in progress, " + "; ".join(left)) if left else "All starters have played"
             return (f'<div class="scoreboard game"><span class="badge">Live</span>{rows}</div>'
                     f'<p class="note">{note}. This preview was written before the games.</p>')
-    up = data.get("upcoming")
-    if not up or up["period"] != p:
+    up = next((x for x in (data.get("upcoming"), lp) if x and x["period"] == p), None)
+    if not up:
         return ""
     game = next((g for g in up["games"] if set(g) == set(matchup)), None)
     if game is None:
